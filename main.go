@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // structure for the email request payload
@@ -53,10 +54,26 @@ func sendEmailHandler(w http.ResponseWriter, r *http.Request) {
 
 	msg := formatEmailMessage(request.Recipients, request.Subject, request.Message)
 
-	// send the email
-	if err := smtp.SendMail(addr, auth, emailConfig.senderEmail, request.Recipients, msg); err != nil {
-		http.Error(w, "Failed to send email", http.StatusInternalServerError)
-		return
+	maxRetries := 3
+	retryCount := 0
+	backoff := 1 * time.Second
+
+	for {
+		if err := smtp.SendMail(addr, auth, emailConfig.senderEmail, request.Recipients, msg); err != nil {
+			retryCount++
+			if retryCount >= maxRetries {
+				// if max retries reached, return an error response
+				http.Error(w, "Failed to send email after multiple attempts", http.StatusInternalServerError)
+				return
+			}
+			// log retry attempt
+			log.Printf("Attempt %d failed, retrying in %v...\n", retryCount, backoff)
+			time.Sleep(backoff)
+			// exponential backoff
+			backoff *= 2
+		} else {
+			break
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
