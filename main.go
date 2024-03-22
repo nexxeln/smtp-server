@@ -14,9 +14,9 @@ import (
 
 // structure for the email request payload
 type EmailRequest struct {
-	Subject    string   `json:"subject"`  
-	Message    string   `json:"message"`    
-	Recipients []string `json:"recipients"` 
+	Subject    string   `json:"subject"`
+	Message    string   `json:"message"`
+	Recipients []string `json:"recipients"`
 }
 
 // handles the incoming HTTP request to send an email
@@ -49,32 +49,32 @@ func sendEmailHandler(w http.ResponseWriter, r *http.Request) {
 
 	// send emails in the background
 	go func() {
-	    // authenticate with the SMTP server
-	    auth := smtp.PlainAuth("", emailConfig.senderEmail, emailConfig.password, emailConfig.smtpServer)
-	    // format the SMTP server address
-	    addr := fmt.Sprintf("%s:%s", emailConfig.smtpServer, emailConfig.smtpPort)
+		// authenticate with the SMTP server
+		auth := smtp.PlainAuth("", emailConfig.senderEmail, emailConfig.password, emailConfig.smtpServer)
+		// format the SMTP server address
+		addr := fmt.Sprintf("%s:%s", emailConfig.smtpServer, emailConfig.smtpPort)
 
-	    msg := formatEmailMessage(request.Recipients, request.Subject, request.Message)
+		msg := formatEmailMessage(request.Recipients, request.Subject, request.Message)
 
-	    maxRetries := 3
-	    retryCount := 0
-	    backoff := 1 * time.Second
+		maxRetries := 3
+		retryCount := 0
+		backoff := 1 * time.Second
 
-	    for {
-	        if err := smtp.SendMail(addr, auth, emailConfig.senderEmail, request.Recipients, msg); err != nil {
-	            retryCount++
-	            if retryCount >= maxRetries {
-	                log.Printf("Failed to send email after multiple attempts: %v", err)
-	                return
-	            }
-	            log.Printf("Attempt %d failed, retrying in %v...\n", retryCount, backoff)
-	            time.Sleep(backoff)
-	            backoff *= 2
-	        } else {
-	            log.Println("Email sent successfully")
-	            break
-	        }
-	    }
+		for {
+			if err := smtp.SendMail(addr, auth, emailConfig.senderEmail, request.Recipients, msg); err != nil {
+				retryCount++
+				if retryCount >= maxRetries {
+					log.Printf("Failed to send email after multiple attempts: %v", err)
+					return
+				}
+				log.Printf("Attempt %d failed, retrying in %v...\n", retryCount, backoff)
+				time.Sleep(backoff)
+				backoff *= 2
+			} else {
+				log.Println("Email sent successfully")
+				break
+			}
+		}
 	}()
 
 	// respond immediately
@@ -125,7 +125,7 @@ func isValidEmail(email string) bool {
 
 // format the email message
 func formatEmailMessage(recipients []string, subject, message string) []byte {
-	return []byte(fmt.Sprintf("To: %s\r\nSubject: %s\r\n\r\n%s\r\n", 
+	return []byte(fmt.Sprintf("To: %s\r\nSubject: %s\r\n\r\n%s\r\n",
 		strings.Join(recipients, ","), subject, message))
 }
 
