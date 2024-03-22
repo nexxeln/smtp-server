@@ -47,38 +47,41 @@ func sendEmailHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 
-	// authenticate with the SMTP server
-	auth := smtp.PlainAuth("", emailConfig.senderEmail, emailConfig.password, emailConfig.smtpServer)
-	// format the SMTP server address
-	addr := fmt.Sprintf("%s:%s", emailConfig.smtpServer, emailConfig.smtpPort)
+	// send emails in the background
+	go func() {
+	    // authenticate with the SMTP server
+	    auth := smtp.PlainAuth("", emailConfig.senderEmail, emailConfig.password, emailConfig.smtpServer)
+	    // format the SMTP server address
+	    addr := fmt.Sprintf("%s:%s", emailConfig.smtpServer, emailConfig.smtpPort)
 
-	msg := formatEmailMessage(request.Recipients, request.Subject, request.Message)
+	    msg := formatEmailMessage(request.Recipients, request.Subject, request.Message)
 
-	maxRetries := 3
-	retryCount := 0
-	backoff := 1 * time.Second
+	    maxRetries := 3
+	    retryCount := 0
+	    backoff := 1 * time.Second
 
-	for {
-		if err := smtp.SendMail(addr, auth, emailConfig.senderEmail, request.Recipients, msg); err != nil {
-			retryCount++
-			if retryCount >= maxRetries {
-				// if max retries reached, return an error response
-				http.Error(w, "Failed to send email after multiple attempts", http.StatusInternalServerError)
-				return
-			}
-			// log retry attempt
-			log.Printf("Attempt %d failed, retrying in %v...\n", retryCount, backoff)
-			time.Sleep(backoff)
-			// exponential backoff
-			backoff *= 2
-		} else {
-			break
-		}
-	}
+	    for {
+	        if err := smtp.SendMail(addr, auth, emailConfig.senderEmail, request.Recipients, msg); err != nil {
+	            retryCount++
+	            if retryCount >= maxRetries {
+	                log.Printf("Failed to send email after multiple attempts: %v", err)
+	                return
+	            }
+	            log.Printf("Attempt %d failed, retrying in %v...\n", retryCount, backoff)
+	            time.Sleep(backoff)
+	            backoff *= 2
+	        } else {
+	            log.Println("Email sent successfully")
+	            break
+	        }
+	    }
+	}()
 
+	// respond immediately
 	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Email sent successfully"))
+	// 202 Accepted because the email is being processed in the background
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte("Email is being processed"))
 }
 
 // structure to store email configuration
