@@ -14,9 +14,9 @@ import (
 
 // structure for the email request payload
 type EmailRequest struct {
-	Subject    string   `json:"subject"`  
-	Message    string   `json:"message"`    
-	Recipients []string `json:"recipients"` 
+	Subject    string   `json:"subject"`
+	Message    string   `json:"message"`
+	Recipients []string `json:"recipients"`
 }
 
 // handles the incoming HTTP request to send an email
@@ -122,7 +122,7 @@ func isValidEmail(email string) bool {
 
 // format the email message
 func formatEmailMessage(recipients []string, subject, message string) []byte {
-	return []byte(fmt.Sprintf("To: %s\r\nSubject: %s\r\n\r\n%s\r\n", 
+	return []byte(fmt.Sprintf("To: %s\r\nSubject: %s\r\n\r\n%s\r\n",
 		strings.Join(recipients, ","), subject, message))
 }
 
