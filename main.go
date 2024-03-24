@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +11,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // structure for the email request payload
@@ -17,6 +22,22 @@ type EmailRequest struct {
 	Subject    string   `json:"subject"`
 	Message    string   `json:"message"`
 	Recipients []string `json:"recipients"`
+}
+
+var client *mongo.Client
+
+func connectToMongoDB() {
+	var err error
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err = mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = client.Ping(context.TODO(), nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Connected to MongoDB!")
 }
 
 // handles the incoming HTTP request to send an email
@@ -34,11 +55,26 @@ func sendEmailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	collection := client.Database("micemail").Collection("emails")
+
 	// validate recipient email addresses
 	for _, recipient := range request.Recipients {
 		if !isValidEmail(recipient) {
 			http.Error(w, fmt.Sprintf("Recipient email address '%s' is not valid", recipient), http.StatusBadRequest)
 			return
+		}
+
+		// check for duplicate and insert if not exists
+		filter := bson.M{"email": recipient}
+		var result struct{ Email string }
+		err := collection.FindOne(context.TODO(), filter).Decode(&result)
+		if err == mongo.ErrNoDocuments {
+			_, err := collection.InsertOne(context.TODO(), bson.M{
+				"email": recipient,
+			})
+			if err != nil {
+				log.Printf("Could not insert email %s: %v", recipient, err)
+			}
 		}
 	}
 
@@ -127,6 +163,13 @@ func formatEmailMessage(recipients []string, subject, message string) []byte {
 }
 
 func main() {
+	connectToMongoDB()
+	defer func() {
+		if err := client.Disconnect(context.TODO()); err != nil {
+			log.Fatalf("Error disconnecting from MongoDB: %s", err)
+		}
+	}()
+
 	http.HandleFunc("/send-email", sendEmailHandler)
 
 	log.Println("Server starting on port 8080...")
