@@ -108,6 +108,18 @@ func sendEmailHandler(w http.ResponseWriter, r *http.Request) {
 			// exponential backoff
 			backoff *= 2
 		} else {
+			// store sent emails
+			sentEmailCollection := client.Database("micemail").Collection("sentEmails")
+			_, err := sentEmailCollection.InsertOne(context.TODO(), bson.M{
+				"subject":    request.Subject,
+				"message":    request.Message,
+				"recipients": request.Recipients,
+				"sentAt":     time.Now(),
+			})
+			if err != nil {
+				log.Printf("Could not store sent email details: %v", err)
+			}
+
 			break
 		}
 	}
