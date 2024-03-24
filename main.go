@@ -117,6 +117,40 @@ func sendEmailHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Email sent successfully"))
 }
 
+// Handler function to get all emails from the database
+func getAllEmailsHandler(w http.ResponseWriter, r *http.Request) {
+	// restrict to only GET method
+	if r.Method != http.MethodGet {
+		http.Error(w, "Only GET method is allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	collection := client.Database("micemail").Collection("emails")
+
+	// find all documents
+	cursor, err := collection.Find(context.TODO(), bson.M{})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(context.TODO())
+
+	var emails []bson.M
+	if err = cursor.All(context.TODO(), &emails); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// set response header to application/json
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	// encode and send the emails as JSON
+	if err := json.NewEncoder(w).Encode(emails); err != nil {
+		log.Printf("Error encoding emails to JSON: %v", err)
+	}
+}
+
 // structure to store email configuration
 type emailConfig struct {
 	senderEmail string
@@ -171,6 +205,7 @@ func main() {
 	}()
 
 	http.HandleFunc("/send-email", sendEmailHandler)
+	http.HandleFunc("/get-all-emails", getAllEmailsHandler) // Register the new handler
 
 	log.Println("Server starting on port 8080...")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
